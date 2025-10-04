@@ -26,7 +26,7 @@
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             padding: 40px;
-            max-width: 800px;
+            max-width: 400px;
             width: 100%;
         }
 
@@ -73,13 +73,13 @@
         #keyboard {
             position: relative;
             width: 100%;
-            aspect-ratio: 3 / 1;
+            aspect-ratio: 5 / 3;
         }
 
         .key {
             position: absolute;
-            width: 40px;
-            height: 40px;
+            width: 30px;
+            height: 35px;
             background: white;
             border: 2px solid #ddd;
             border-radius: 5px;
@@ -88,7 +88,7 @@
             justify-content: center;
             font-weight: bold;
             color: #333;
-            font-size: 14px;
+            font-size: 13px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
@@ -195,9 +195,9 @@
         const wordInput = document.getElementById('wordInput');
 
         // Key size and spacing
-        const keyWidth = 40;
-        const keyHeight = 40;
-        const keySpacing = 50;
+        const keyWidth = 30;
+        const keyHeight = 35;
+        const keySpacing = 35;
         const rowOffset = 50;
 
         // Create keyboard keys
