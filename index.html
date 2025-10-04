@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Erutseg - Gesture from Word</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 1.2em;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #667eea;
+        }
+
+        .visualization {
+            position: relative;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        #keyboard {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 3 / 1;
+        }
+
+        .key {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .key.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            transform: scale(1.1);
+            transition: all 0.2s;
+        }
+
+        #gestureCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .info {
+            text-align: center;
+            color: #666;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+
+        path.gesture-path {
+            fill: none;
+            stroke: #667eea;
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        circle.gesture-point {
+            fill: #667eea;
+            opacity: 0.6;
+        }
+
+        circle.gesture-start {
+            fill: #28a745;
+            opacity: 0.8;
+        }
+
+        circle.gesture-end {
+            fill: #dc3545;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Erutseg</h1>
+        <p class="subtitle">Infer a gesture from a word (the opposite of glide typing)</p>
+        
+        <div class="input-section">
+            <input type="text" id="wordInput" placeholder="Type a word..." autocomplete="off">
+        </div>
+
+        <div class="visualization">
+            <div id="keyboard"></div>
+            <svg id="gestureCanvas"></svg>
+        </div>
+
+        <div class="info">
+            Enter a word to see the gesture path visualization
+        </div>
+    </div>
+
+    <script>
+        // QWERTY keyboard layout with approximate positions
+        const keyboardLayout = {
+            'q': { row: 0, col: 0 },
+            'w': { row: 0, col: 1 },
+            'e': { row: 0, col: 2 },
+            'r': { row: 0, col: 3 },
+            't': { row: 0, col: 4 },
+            'y': { row: 0, col: 5 },
+            'u': { row: 0, col: 6 },
+            'i': { row: 0, col: 7 },
+            'o': { row: 0, col: 8 },
+            'p': { row: 0, col: 9 },
+            'a': { row: 1, col: 0.5 },
+            's': { row: 1, col: 1.5 },
+            'd': { row: 1, col: 2.5 },
+            'f': { row: 1, col: 3.5 },
+            'g': { row: 1, col: 4.5 },
+            'h': { row: 1, col: 5.5 },
+            'j': { row: 1, col: 6.5 },
+            'k': { row: 1, col: 7.5 },
+            'l': { row: 1, col: 8.5 },
+            'z': { row: 2, col: 1.5 },
+            'x': { row: 2, col: 2.5 },
+            'c': { row: 2, col: 3.5 },
+            'v': { row: 2, col: 4.5 },
+            'b': { row: 2, col: 5.5 },
+            'n': { row: 2, col: 6.5 },
+            'm': { row: 2, col: 7.5 }
+        };
+
+        const keyboard = document.getElementById('keyboard');
+        const gestureCanvas = document.getElementById('gestureCanvas');
+        const wordInput = document.getElementById('wordInput');
+
+        // Key size and spacing
+        const keyWidth = 40;
+        const keyHeight = 40;
+        const keySpacing = 50;
+        const rowOffset = 50;
+
+        // Create keyboard keys
+        function createKeyboard() {
+            for (const [letter, pos] of Object.entries(keyboardLayout)) {
+                const key = document.createElement('div');
+                key.className = 'key';
+                key.textContent = letter.toUpperCase();
+                key.id = `key-${letter}`;
+                
+                const x = pos.col * keySpacing + 20;
+                const y = pos.row * rowOffset + 20;
+                
+                key.style.left = `${x}px`;
+                key.style.top = `${y}px`;
+                
+                keyboard.appendChild(key);
+            }
+        }
+
+        // Convert letter position to pixel coordinates
+        function getKeyCoordinates(letter) {
+            const pos = keyboardLayout[letter.toLowerCase()];
+            if (!pos) return null;
+            
+            const x = pos.col * keySpacing + 20 + keyWidth / 2;
+            const y = pos.row * rowOffset + 20 + keyHeight / 2;
+            
+            return { x, y };
+        }
+
+        // Create smooth curve using cubic Bezier curves
+        function createSmoothPath(points) {
+            if (points.length < 2) return '';
+            
+            let path = `M ${points[0].x} ${points[0].y}`;
+            
+            if (points.length === 2) {
+                path += ` L ${points[1].x} ${points[1].y}`;
+                return path;
+            }
+            
+            // Use cubic Bezier curves for smooth path
+            for (let i = 0; i < points.length - 1; i++) {
+                const current = points[i];
+                const next = points[i + 1];
+                
+                if (i === 0) {
+                    // First segment
+                    const nextNext = points[i + 2] || next;
+                    const cp1x = current.x + (next.x - current.x) * 0.3;
+                    const cp1y = current.y + (next.y - current.y) * 0.3;
+                    const cp2x = next.x - (nextNext.x - current.x) * 0.15;
+                    const cp2y = next.y - (nextNext.y - current.y) * 0.15;
+                    path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+                } else {
+                    const prev = points[i - 1];
+                    const nextNext = points[i + 2] || next;
+                    const cp1x = current.x + (next.x - prev.x) * 0.15;
+                    const cp1y = current.y + (next.y - prev.y) * 0.15;
+                    const cp2x = next.x - (nextNext.x - current.x) * 0.15;
+                    const cp2y = next.y - (nextNext.y - current.y) * 0.15;
+                    path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+                }
+            }
+            
+            return path;
+        }
+
+        // Draw gesture on SVG canvas
+        function drawGesture(word) {
+            // Clear previous gesture
+            gestureCanvas.innerHTML = '';
+            
+            // Remove active class from all keys
+            document.querySelectorAll('.key').forEach(key => {
+                key.classList.remove('active');
+            });
+            
+            if (!word) return;
+            
+            const points = [];
+            const letters = word.toLowerCase().split('');
+            
+            // Get coordinates for each letter
+            for (const letter of letters) {
+                const coords = getKeyCoordinates(letter);
+                if (coords) {
+                    points.push(coords);
+                    
+                    // Highlight the key
+                    const keyElement = document.getElementById(`key-${letter}`);
+                    if (keyElement) {
+                        keyElement.classList.add('active');
+                    }
+                }
+            }
+            
+            if (points.length < 2) return;
+            
+            // Create smooth path
+            const pathData = createSmoothPath(points);
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', pathData);
+            path.setAttribute('class', 'gesture-path');
+            gestureCanvas.appendChild(path);
+            
+            // Add start point (green)
+            const startCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            startCircle.setAttribute('cx', points[0].x);
+            startCircle.setAttribute('cy', points[0].y);
+            startCircle.setAttribute('r', '6');
+            startCircle.setAttribute('class', 'gesture-start');
+            gestureCanvas.appendChild(startCircle);
+            
+            // Add intermediate points
+            for (let i = 1; i < points.length - 1; i++) {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', points[i].x);
+                circle.setAttribute('cy', points[i].y);
+                circle.setAttribute('r', '4');
+                circle.setAttribute('class', 'gesture-point');
+                gestureCanvas.appendChild(circle);
+            }
+            
+            // Add end point (red)
+            const endCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            endCircle.setAttribute('cx', points[points.length - 1].x);
+            endCircle.setAttribute('cy', points[points.length - 1].y);
+            endCircle.setAttribute('r', '6');
+            endCircle.setAttribute('class', 'gesture-end');
+            gestureCanvas.appendChild(endCircle);
+        }
+
+        // Event listener for input
+        wordInput.addEventListener('input', (e) => {
+            drawGesture(e.target.value);
+        });
+
+        // Initialize keyboard
+        createKeyboard();
+        
+        // Optional: Draw initial example
+        // wordInput.value = 'hello';
+        // drawGesture('hello');
+    </script>
+</body>
+</html>
